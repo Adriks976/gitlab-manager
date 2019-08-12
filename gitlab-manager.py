@@ -117,7 +117,6 @@ def init_argparse():
 
 if __name__ == '__main__':
     args = init_argparse()
-    print(args)
     if args.gitlab_url is not None and args.gitlab_token is not None:
         gl = gitlab.Gitlab(args.gitlab_url, private_token=args.gitlab_token)
     else:
