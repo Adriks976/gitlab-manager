@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+
+import argparse
+import gitlab
+import logging as log
+from requests import exceptions
+
+class MergeRequest:
+    def __init__(self, mr):
+        self.Id = mr.iid
+        self.Author = mr.author['username']
+        self.Title = mr.title
+        self.Description = mr.description
+        self.Label = "info"
+        if len(mr.labels) == 1:
+            self.Label = "[{}]".format(mr.labels[0])
+            
+    
+    def print_mr(self):
+        return "### {}: {}\n\n{}\n\n    * by: {}\n\n    * Merge Request ID:{}\n".format(self.Label, self.Title, self.Description, self.Author, self.Id)
+
+def list_mrs(project, wip):
+    print("\nHere is the list of MRs for your chosen project:\n")
+    mrs = project.mergerequests.list(state='opened', order_by='updated_at', wip=wip)
+    all_mr = ""
+    for mr in mrs:
+        current = MergeRequest(mr)
+        all_mr = all_mr + "{}\n\n".format(current.print_mr())
+    print(all_mr)
+    return all_mr
+
+def update_mr(project, mr_id, label=None, tag=None):
+    mr = project.mergerequests.get(mr_id)
+    if label is not None:
+        mr.labels = [label]
+    
+    if tag is not None:
+        milestones = project.milestones.list(state='active', search=tag)
+        if len(milestones) == 1:
+            milestone = milestones[0]
+        elif len(milestones) == 0:
+            print("create milestone")
+            milestone = project.milestones.create({'title': tag})
+        else:
+            print("please verify your tag")
+            exit()
+        mr.milestone_id = milestone.id
+    mr.save()
+    
+
+def print_changelog(project, tag, push=False):
+    print("\nYour changelog for {} on Project {}:\n".format(tag, project.name))
+    mrs = project.mergerequests.list(state='opened', order_by='updated_at', milestone=tag)
+    all_mr = ""
+    for mr in mrs:
+        current = MergeRequest(mr)
+        all_mr = all_mr + "{}\n\n------------------\n\n".format(current.print_mr())
+    print(all_mr)
+    if push:
+        #release = project.releases.create({'name': str(tag), 'tag_name': tag, 'description': all_mr})
+        project.releases.delete(tag)
+        #print(release)
+
+
+def init_argparse():
+    try:
+        parser = argparse.ArgumentParser(prog='gitlab-manager', description='manage gitlab api mr and changelog')
+        # Optionals
+        '''override defaults or configuration'''
+        parser.add_argument("project")
+        optionals = parser.add_argument_group()
+        optionals.add_argument("--gitlab-url", dest='gitlab_url', action='store', type=str,
+                               help='Specify gitlab url ex: https://gitlab.com')
+        optionals.add_argument("--gitlab-token", dest='gitlab_token', action='store', type=str,
+                               help='Specify private gitlab token')
+        
+        subparsers = parser.add_subparsers(dest='command')
+        mr_group = subparsers.add_parser('mr')
+        changelog_group = subparsers.add_parser('changelog')
+
+        subparsers = mr_group.add_subparsers(dest='action')
+        ls_mr = subparsers.add_parser('ls')
+        ls_mr.add_argument("--wip", dest='wip', action='store', type=str,
+        help='search wip or not', choices=['yes', 'no'])
+        update_mr = subparsers.add_parser('update')
+        update_mr.add_argument('mr_id')
+        update_mr.add_argument("--label", dest='label', action='store', type=str,
+        help='put a speficic label ex: Feature')
+        update_mr.add_argument("--tag", dest='tag', action='store', type=str,
+        help='put a speficic tag ex: 0.2.0')
+        
+        subparsers = changelog_group.add_subparsers(dest='action')
+        print_changelog = subparsers.add_parser('print', help='print changelog')
+        print_changelog.add_argument("tag",
+        help='generate changelog for specific tag ex: 0.2.0')
+        push_changelog = subparsers.add_parser('push', help='Push changelog to releases in gitlab')
+        push_changelog.add_argument("tag",
+        help='generate changelog for specific tag ex: 0.2.0')
+        arguments = parser.parse_args()
+        if "command" in arguments:
+            if arguments.command =="mr":
+                if arguments.action == "update" and (not arguments.label and not arguments.tag):
+                    update_mr.error("At least one of --label or --tag must be given")
+                if arguments.action is None:
+                    mr_group.error("One action is required")
+            if arguments.command =="changelog":
+                if arguments.action is None:
+                    changelog_group.error("One action is required")
+        else:
+            parser.error("One command is needed")
+    except argparse.ArgumentError as e:
+        log.error("Error parsing arguments")
+        raise e
+    else:
+        log.debug(f"Arguments have been parsed: {arguments}")
+        return arguments
+
+if __name__ == '__main__':
+    args = init_argparse()
+    print(args)
+    if args.gitlab_url is not None and args.gitlab_token is not None:
+        gl = gitlab.Gitlab(args.gitlab_url, private_token=args.gitlab_token)
+    else:
+        try:
+            gl = gitlab.Gitlab.from_config()
+        except gitlab.config.GitlabConfigMissingError as e:
+            print(e)
+            exit()
+    try:
+        projects = gl.projects.list(search=args.project)
+    except exceptions.MissingSchema:
+        log.error("Error with the URL defined")
+        exit()
+    except gitlab.exceptions.GitlabAuthenticationError:
+        log.error("Wrong private token")
+        exit()
+    if len(projects) != 1:
+        print("can't find the project {}\n {}".format(args.project, projects))
+        exit()
+    project = projects[0]
+    if args.command == "mr":
+        if args.action == "ls":
+            list_mrs(project, args.wip)
+        if args.action == "update":
+            update_mr(project, args.mr_id, args.label, args.tag)
+    if args.command == "changelog":
+        push = False
+        if args.action == "push":
+            push = True
+        print_changelog(project, args.tag, push)
