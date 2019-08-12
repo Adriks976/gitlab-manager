@@ -57,8 +57,8 @@ def print_changelog(project, tag, push=False):
         all_mr = all_mr + "{}\n\n------------------\n\n".format(current.print_mr())
     print(all_mr)
     if push:
-        #release = project.releases.create({'name': str(tag), 'tag_name': tag, 'description': all_mr})
-        project.releases.delete(tag)
+        project.releases.create({'name': str(tag), 'tag_name': tag, 'description': all_mr})
+        #project.releases.delete(tag)
         #print(release)
 
 
