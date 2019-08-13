@@ -1,0 +1,6 @@
+# Install dependencies
+
+argparse
+gitlab==1.9.0
+requests
+logging
