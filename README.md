@@ -73,6 +73,22 @@ $ pip3 install -r requirements.txt
 
 ## Usage
 
+Important: To contact Gitlab API you need 2 parameters: an URL and a private token
+
+You can speficy this parameters with the script or the best way is to have on your home a file called .python-gitlab.cfg
+
+```
+[global]
+default=gitlab.com
+ssl_verify = true
+timeout = 5
+
+[gitlab.com]
+url = https://gitlab.com
+private_token = YOUR_TOKEN
+```
+
+
 ```
 usage: gitlab-manager [-h] [--gitlab-url GITLAB_URL]
                       [--gitlab-token GITLAB_TOKEN]
