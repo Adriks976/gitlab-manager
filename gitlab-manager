@@ -50,7 +50,7 @@ def update_mr(project, mr_id, label=None, tag=None):
 
 def print_changelog(project, tag, push=False):
     print("\nYour changelog for {} on Project {}:\n".format(tag, project.name))
-    mrs = project.mergerequests.list(state='opened', order_by='updated_at', milestone=tag)
+    mrs = project.mergerequests.list(order_by='updated_at', milestone=tag)
     all_mr = ""
     for mr in mrs:
         current = MergeRequest(mr)
