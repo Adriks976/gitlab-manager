@@ -1,5 +1,4 @@
 FROM python:3.7-alpine
-RUN ls -la
+RUN cd /home/runner/work/gitlab-manager/gitlab-manager && ls -la
 RUN pip install -r requirements.txt
-RUN pip --version
 ENTRYPOINT ["./gitlab-manager.py", "-h"] 
