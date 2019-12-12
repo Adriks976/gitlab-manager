@@ -11,7 +11,7 @@ A Python script for:
   * lists them wip or not
   * update a MR with label and milestone
 * changelog:
-  * print changelog for a certain milestone (aka next tag)
+  * print changelog for a certain milestone (aka next tag) in different output: json, text, html
   * push with the release API on gitlab your changelog
 
 ## Table of Contents
@@ -124,21 +124,24 @@ optional arguments:
 $ gitlab-manager MY_PROJECT_NAME mr ls
     Here is the list of MRs for your chosen project:
 
-    ### [Feature]: New feature
-
-    *  Description for my new feature
-
-        * by: Adriks976
-
-        * Merge Request ID:1
-    
-    ### Wip: [Fix]: oupss there's a bug
-
-    *  Description for my bug fix
-
-        * by: Adriks976
-
-        * Merge Request ID:2
+    [
+      {
+        "Author": "Adriks976",
+        "Description": "Description for my new feature",
+        "Id": 1,
+        "Label": "Feature",
+        "Title": "New feature",
+        "Url": "https://gitlab.com/MY_PROJECT_NAME/merge_requests/1"
+      },
+      {
+        "Author": "Adriks976",
+        "Description": "Description for my bug fix",
+        "Id": 2,
+        "Label": "Fix",
+        "Title": Wip: [Fix]: oupss there's a bug",
+        "Url": "https://gitlab.com/MY_PROJECT_NAME/merge_requests/2"
+      }
+    ]
 
 ```
 
@@ -147,13 +150,16 @@ $ gitlab-manager MY_PROJECT_NAME mr ls
 $ gitlab-manager MY_PROJECT_NAME mr ls --wip no
     Here is the list of MRs for your chosen project:
 
-    ### [Feature]: New feature
-
-    *  Description for my new feature
-
-        * by: Adriks976
-
-        * Merge Request ID:1
+    [
+      {
+        "Author": "Adriks976",
+        "Description": "Description for my new feature",
+        "Id": 1,
+        "Label": "Feature",
+        "Title": "New feature",
+        "Url": "https://gitlab.com/MY_PROJECT_NAME/merge_requests/1"
+      }
+    ]
     
 ```
 
@@ -161,13 +167,16 @@ $ gitlab-manager MY_PROJECT_NAME mr ls --wip no
 $ gitlab-manager MY_PROJECT_NAME mr ls --wip yes
     Here is the list of MRs for your chosen project:
 
-    ### Wip: [Fix]: oupss there's a bug
-
-    *  Description for my bug fix
-
-        * by: Adriks976
-
-        * Merge Request ID:2
+    [
+      {
+        "Author": "Adriks976",
+        "Description": "Description for my bug fix",
+        "Id": 2,
+        "Label": "Fix",
+        "Title": Wip: [Fix]: oupss there's a bug",
+        "Url": "https://gitlab.com/MY_PROJECT_NAME/merge_requests/2"
+      }
+    ]
     
 ```
 
@@ -204,18 +213,36 @@ $ gitlab-manager MY_PROJECT_NAME mr update 1 --label FEATURE --tag 0.1.0
 ### Generate changelog
 
 ```
-usage: gitlab-manager project changelog print [-h] tag
+usage: gitlab-manager project changelog print [-h] [--output {json,text,html}] tag
 
 positional arguments:
-  tag         generate changelog for specific tag ex: 0.2.0
+  tag                   generate changelog for specific tag ex: 0.2.0
 
 optional arguments:
-  -h, --help  show this help message and exit
+  -h, --help            show this help message and exit
+  --output {json,text,html}
+                        Define the output you want for the changelog
 ```
 
 
 ```
 $ gitlab-manager MY_PROJECT_NAME changelog print 0.1.0
+    Your changelog for 0.1.0 on Project MY_PROJECT_NAME:
+
+    [
+      {
+        "Author": "Adriks976",
+        "Description": "Description for my new feature",
+        "Id": 1,
+        "Label": "Feature",
+        "Title": "New feature",
+        "Url": "https://gitlab.com/MY_PROJECT_NAME/merge_requests/1"
+      }
+    ]
+```
+
+```
+$ gitlab-manager MY_PROJECT_NAME changelog print 0.1.0 --output text
     Your changelog for 0.1.0 on Project MY_PROJECT_NAME:
 
     ### [FEATURE]: New feature
@@ -227,6 +254,12 @@ $ gitlab-manager MY_PROJECT_NAME changelog print 0.1.0
         * Merge Request ID:1
 ```
 
+```
+$ gitlab-manager MY_PROJECT_NAME changelog print 0.1.0 --output html
+    Your changelog for 0.1.0 on Project MY_PROJECT_NAME:
+
+    <table class="table table-condensed table-bordered table-hover"><thead><tr><th>Author</th><th>Description</th><th>Id</th><th>Label</th><th>Title</th><th>Url</th></tr></thead><tbody><tr><td>Adriks976</td><td>Description for my new feature</td><td>1</td><td>Feature</td><td>New feature</td><td>https://gitlab.com/MY_PROJECT_NAME/merge_requests/1</td></tr></tbody></table>
+```
 
 ### Push changelog on Relases
 
