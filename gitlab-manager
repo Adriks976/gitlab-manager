@@ -126,7 +126,10 @@ if __name__ == '__main__':
             print(e)
             exit()
     try:
-        projects = gl.projects.list(search=args.project)
+        if args.project.isdecimal():
+            projects = [gl.projects.get(args.project)]
+        else:
+            projects = gl.projects.list(search=args.project)
     except exceptions.MissingSchema:
         log.error("Error with the URL defined")
         exit()
