@@ -53,8 +53,8 @@ def update_mr(project, mr_id, label=None, tag=None):
     mr.save()
     
 
-def print_changelog(project, tag, output, push=False):
-    print("\nYour changelog for {} on Project {}:\n".format(tag, project.name))
+def print_changelog(project, tag, output="json"):
+    #print("\nYour changelog for {} on Project {}:\n".format(tag, project.name))
     mrs = project.mergerequests.list(order_by='updated_at', milestone=tag)
     all_mr = []
     all_mr_text = ""
@@ -68,16 +68,21 @@ def print_changelog(project, tag, output, push=False):
         return all_mr
     if output == "html":
         from json2html import json2html
-        print(json2html.convert(json = json_all_mr, table_attributes="id=\"info-table\" class=\"table table-bordered table-hover\""))
-        return json2html.convert(json = json_all_mr, table_attributes="id=\"info-table\" class=\"table table-bordered table-hover\"")
+        import htmlmin
+        result_html = json2html.convert(json = json_all_mr, encode=True, table_attributes="id=\"info-table\" width=\"100%\" cellspacing=\"0\" cellpadding=\"5\" border=\"1\" align=\"center\"")
+        result_html = htmlmin.minify(result_html.decode("UTF-8"), remove_empty_space=True)
+        print(result_html, end = '')
+        return result_html
     if output == "text":
         print(all_mr_text)
         return all_mr_text
+    
+
+def push_changelog(all_mr, tag, push=False):
     if push:
         project.releases.create({'name': str(tag), 'tag_name': tag, 'description': all_mr})
         #project.releases.delete(tag)
         #print(release)
-
 
 def init_argparse():
     try:
@@ -131,7 +136,7 @@ def init_argparse():
         log.error("Error parsing arguments")
         raise e
     else:
-        log.debug(f"Arguments have been parsed: {arguments}")
+        log.debug("Arguments have been parsed: {arguments}")
         return arguments
 
 if __name__ == '__main__':
@@ -166,6 +171,11 @@ if __name__ == '__main__':
             update_mr(project, args.mr_id, args.label, args.tag)
     if args.command == "changelog":
         push = False
+        if "output" not in args:
+            print_changelog(project, args.tag, "json")
+        else:
+            print_changelog(project, args.tag, args.output)
         if args.action == "push":
             push = True
-        print_changelog(project, args.tag, args.output, push)
+            all_mr_txt = print_changelog(project, args.tag, "text")
+            push_changelog(all_mr_txt, args.tag, push)
