@@ -4,33 +4,39 @@ import argparse
 import gitlab
 import logging as log
 from requests import exceptions
+import json
+import unidecode
 
 class MergeRequest:
     def __init__(self, mr):
         self.Id = mr.iid
         self.Author = mr.author['username']
-        self.Title = mr.title
-        self.Description = mr.description
+        self.Title = unidecode.unidecode(mr.title)
+        self.Description = unidecode.unidecode(mr.description)
         self.Label = "info"
+        self.Url = mr.web_url
         if len(mr.labels) == 1:
             self.Label = "[{}]".format(mr.labels[0])
             
+    def json_mr(self):
+        return {'Url':self.Url, 'Label': self.Label, 'Title': self.Title, 'Description': self.Description, 'Author': self.Author, 'Id': self.Id }
     
     def print_mr(self):
         return "### {}: {}\n\n{}\n\n    * by: {}\n\n    * Merge Request ID:{}\n".format(self.Label, self.Title, self.Description, self.Author, self.Id)
 
-def list_mrs(project, wip, labels=[]):
+def list_mrs(project, state, wip, labels=[]):
     print("\nHere is the list of MRs for your chosen project:\n")
     mrs = []
     if len(labels) > 0:
-        mrs = project.mergerequests.list(state='opened', order_by='updated_at', wip=wip, labels=labels)
+        mrs = project.mergerequests.list(state=state, order_by='updated_at', wip=wip, labels=labels)
     else:
-        mrs = project.mergerequests.list(state='opened', order_by='updated_at', wip=wip)
-    all_mr = ""
+        mrs = project.mergerequests.list(state=state, order_by='updated_at', wip=wip)
+    all_mr = []
+
     for mr in mrs:
         current = MergeRequest(mr)
-        all_mr = all_mr + "{}\n\n".format(current.print_mr())
-    print(all_mr)
+        all_mr.append(current.json_mr())
+    print(json.dumps(all_mr, indent=4, sort_keys=True ))
     return all_mr
 
 def update_mr(project, mr_id, label=None, tag=None):
@@ -52,19 +58,36 @@ def update_mr(project, mr_id, label=None, tag=None):
     mr.save()
     
 
-def print_changelog(project, tag, push=False):
-    print("\nYour changelog for {} on Project {}:\n".format(tag, project.name))
+def print_changelog(project, tag, output="json"):
+    #print("\nYour changelog for {} on Project {}:\n".format(tag, project.name))
     mrs = project.mergerequests.list(order_by='updated_at', milestone=tag)
-    all_mr = ""
+    all_mr = []
+    all_mr_text = ""
     for mr in mrs:
         current = MergeRequest(mr)
-        all_mr = all_mr + "{}\n\n------------------\n\n".format(current.print_mr())
-    print(all_mr)
+        all_mr.append(current.json_mr())
+        all_mr_text = all_mr_text + "{}\n\n------------------\n\n".format(current.print_mr())
+    json_all_mr = json.dumps(all_mr, indent=4, sort_keys=True) 
+    if output == "json":
+        print(json_all_mr)
+        return all_mr
+    if output == "html":
+        from json2html import json2html
+        import htmlmin
+        result_html = json2html.convert(json = json_all_mr, encode=True, table_attributes="id=\"info-table\" width=\"100%\" cellspacing=\"0\" cellpadding=\"5\" border=\"1\" align=\"center\"")
+        result_html = htmlmin.minify(result_html.decode("UTF-8"), remove_empty_space=True)
+        print(result_html, end = '')
+        return result_html
+    if output == "text":
+        print(all_mr_text)
+        return all_mr_text
+    
+
+def push_changelog(all_mr, tag, push=False):
     if push:
         project.releases.create({'name': str(tag), 'tag_name': tag, 'description': all_mr})
         #project.releases.delete(tag)
         #print(release)
-
 
 def init_argparse():
     try:
@@ -89,6 +112,10 @@ def init_argparse():
         ls_mr.add_argument("--labels", dest='labels', action='store', type=str,
                            help='Comma separated list of labels to filter MRs for',
                            default='')
+        ls_mr.add_argument("--state", dest='state', action='store', type=str,
+                           help='filter for the specified state',
+                           choices=['all', 'opened', 'closed', 'locked', 'merged'],
+                           default='opened')
         update_mr = subparsers.add_parser('update')
         update_mr.add_argument('mr_id')
         update_mr.add_argument("--label", dest='label', action='store', type=str,
@@ -100,6 +127,8 @@ def init_argparse():
         print_changelog = subparsers.add_parser('print', help='print changelog')
         print_changelog.add_argument("tag",
         help='generate changelog for specific tag ex: 0.2.0')
+        print_changelog.add_argument("--output", dest='output', action='store', type=str,
+        help='Define the output you want for the changelog', choices=['json', 'text', 'html'], default='json')
         push_changelog = subparsers.add_parser('push', help='Push changelog to releases in gitlab')
         push_changelog.add_argument("tag",
         help='generate changelog for specific tag ex: 0.2.0')
@@ -119,7 +148,7 @@ def init_argparse():
         log.error("Error parsing arguments")
         raise e
     else:
-        log.debug(f"Arguments have been parsed: {arguments}")
+        log.debug("Arguments have been parsed: {arguments}")
         return arguments
 
 if __name__ == '__main__':
@@ -149,11 +178,16 @@ if __name__ == '__main__':
     project = projects[0]
     if args.command == "mr":
         if args.action == "ls":
-            list_mrs(project, args.wip, [item for item in args.labels.split(',')])
+            list_mrs(project, args.state, args.wip, [item for item in args.labels.split(',')])
         if args.action == "update":
             update_mr(project, args.mr_id, args.label, args.tag)
     if args.command == "changelog":
         push = False
+        if "output" not in args:
+            print_changelog(project, args.tag, "json")
+        else:
+            print_changelog(project, args.tag, args.output)
         if args.action == "push":
             push = True
-        print_changelog(project, args.tag, push)
+            all_mr_txt = print_changelog(project, args.tag, "text")
+            push_changelog(all_mr_txt, args.tag, push)
