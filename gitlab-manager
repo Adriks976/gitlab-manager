@@ -24,10 +24,15 @@ class MergeRequest:
     def print_mr(self):
         return "### {}: {}\n\n{}\n\n    * by: {}\n\n    * Merge Request ID:{}\n".format(self.Label, self.Title, self.Description, self.Author, self.Id)
 
-def list_mrs(project, state, wip):
+def list_mrs(project, state, wip, labels=[]):
     print("\nHere is the list of MRs for your chosen project:\n")
-    mrs = project.mergerequests.list(state=state, order_by='updated_at', wip=wip)
+    mrs = []
+    if len(labels) > 0:
+        mrs = project.mergerequests.list(state=state, order_by='updated_at', wip=wip, labels=labels)
+    else:
+        mrs = project.mergerequests.list(state=state, order_by='updated_at', wip=wip)
     all_mr = []
+
     for mr in mrs:
         current = MergeRequest(mr)
         all_mr.append(current.json_mr())
@@ -104,6 +109,9 @@ def init_argparse():
         ls_mr = subparsers.add_parser('ls')
         ls_mr.add_argument("--wip", dest='wip', action='store', type=str,
         help='search wip or not', choices=['yes', 'no'])
+        ls_mr.add_argument("--labels", dest='labels', action='store', type=str,
+                           help='Comma separated list of labels to filter MRs for',
+                           default='')
         ls_mr.add_argument("--state", dest='state', action='store', type=str,
                            help='filter for the specified state',
                            choices=['all', 'opened', 'closed', 'locked', 'merged'],
@@ -170,7 +178,7 @@ if __name__ == '__main__':
     project = projects[0]
     if args.command == "mr":
         if args.action == "ls":
-            list_mrs(project, args.state, args.wip)
+            list_mrs(project, args.state, args.wip, [item for item in args.labels.split(',')])
         if args.action == "update":
             update_mr(project, args.mr_id, args.label, args.tag)
     if args.command == "changelog":
